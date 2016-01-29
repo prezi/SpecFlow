@@ -17,7 +17,10 @@ namespace TechTalk.SpecFlow.Generator
 {
     public class UnitTestFeatureGenerator : IFeatureGenerator
     {
-        private const string DEFAULT_NAMESPACE = "SpecFlowTests";
+		private const string CoreTag = "core";
+		private const string PitchTag = "pitch";
+
+		private const string DEFAULT_NAMESPACE = "SpecFlowTests";
         const string TESTCLASS_NAME_FORMAT = "{0}Feature";
         const string TEST_NAME_FORMAT = "{0}";
         private const string IGNORE_TAG = "Ignore";
@@ -112,25 +115,25 @@ namespace TechTalk.SpecFlow.Generator
 				if (string.IsNullOrEmpty(scenario.Title))
 					throw new TestGeneratorException("The scenario must have a title specified.");
 
-				var coreTag = scenario.Tags.FirstOrDefault(x => string.Equals(x.Name, "core", StringComparison.OrdinalIgnoreCase));
-				var pitchTag = scenario.Tags.FirstOrDefault(x => string.Equals(x.Name, "pitch", StringComparison.OrdinalIgnoreCase));
-				
-				if (coreTag != null && pitchTag != null)
-				{
-					scenario.Tags.Remove(pitchTag);
-					GenerateScenario(generationContext, scenario, true);
+				var hasCoreTag = GetTag(scenario.Tags, CoreTag) != null || GetTag(feature.Tags, CoreTag) != null;
+				var hasPitchTag = GetTag(scenario.Tags, PitchTag) != null || GetTag(feature.Tags, PitchTag) != null;
 
-					scenario.Tags.Add(pitchTag);
-					scenario.Tags.Remove(coreTag);
+				if (hasCoreTag && hasPitchTag)
+				{
+					GenerateScenario(generationContext, scenario, true);
 					GenerateScenario(generationContext, scenario, false);
 				}
-				else if (pitchTag != null)
+				else if (hasPitchTag)
 				{
 					GenerateScenario(generationContext, scenario, false);
+				}
+				else if (hasCoreTag)
+				{
+					GenerateScenario(generationContext, scenario, true);
 				}
 				else
 				{
-					GenerateScenario(generationContext, scenario, true);
+					throw new Exception(@"Feature/scenario missing @core and/or @pitch tag.");
 				}
 			}
 
@@ -139,11 +142,33 @@ namespace TechTalk.SpecFlow.Generator
             return codeNamespace;
         }
 
+		private static Tag GetTag(List<Tag> tags, string tagName)
+		{
+			return tags?.FirstOrDefault(x => string.Equals(x.Name, tagName, StringComparison.OrdinalIgnoreCase));
+		}
+
 		private void GenerateScenario(TestClassGenerationContext generationContext, Scenario scenario, bool isCore)
 		{
+			if (scenario.Tags == null)
+			{
+				scenario.Tags = new Tags();
+			}
+
+			scenario.Tags.Remove(GetTag(scenario.Tags, CoreTag));
+			scenario.Tags.Remove(GetTag(scenario.Tags, PitchTag));
+
 			var title = scenario.Title;
 
-			scenario.Title = isCore ? "Core " + scenario.Title : "Pitch " + scenario.Title;
+			if (isCore)
+			{
+				scenario.Tags.Add(new Tag(CoreTag));
+				scenario.Title = "Core - " + scenario.Title;
+			}
+			else
+			{
+				scenario.Tags.Add(new Tag(PitchTag));
+				scenario.Title = "Pitch - " + scenario.Title;
+			}
 
 			var scenarioOutline = scenario as ScenarioOutline;
 			if (scenarioOutline != null)
