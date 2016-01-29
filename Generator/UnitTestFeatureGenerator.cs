@@ -108,23 +108,53 @@ namespace TechTalk.SpecFlow.Generator
 
 
             foreach (var scenario in feature.Scenarios)
-            {
-                if (string.IsNullOrEmpty(scenario.Title))
-                    throw new TestGeneratorException("The scenario must have a title specified.");
+			{
+				if (string.IsNullOrEmpty(scenario.Title))
+					throw new TestGeneratorException("The scenario must have a title specified.");
 
-                var scenarioOutline = scenario as ScenarioOutline;
-                if (scenarioOutline != null)
-                    GenerateScenarioOutlineTest(generationContext, scenarioOutline);
-                else
-                    GenerateTest(generationContext, scenario);
-            }
-            
-            //before return the generated code, call generate provider's method in case the provider want to customerize the generated code            
-            testGeneratorProvider.FinalizeTestClass(generationContext);
+				var coreTag = scenario.Tags.FirstOrDefault(x => string.Equals(x.Name, "core", StringComparison.OrdinalIgnoreCase));
+				var pitchTag = scenario.Tags.FirstOrDefault(x => string.Equals(x.Name, "pitch", StringComparison.OrdinalIgnoreCase));
+				
+				if (coreTag != null && pitchTag != null)
+				{
+					scenario.Tags.Remove(pitchTag);
+					GenerateScenario(generationContext, scenario, true);
+
+					scenario.Tags.Add(pitchTag);
+					scenario.Tags.Remove(coreTag);
+					GenerateScenario(generationContext, scenario, false);
+				}
+				else if (pitchTag != null)
+				{
+					GenerateScenario(generationContext, scenario, false);
+				}
+				else
+				{
+					GenerateScenario(generationContext, scenario, true);
+				}
+			}
+
+			//before return the generated code, call generate provider's method in case the provider want to customerize the generated code            
+			testGeneratorProvider.FinalizeTestClass(generationContext);
             return codeNamespace;
         }
 
-        private void SetupScenarioCleanupMethod(TestClassGenerationContext generationContext)
+		private void GenerateScenario(TestClassGenerationContext generationContext, Scenario scenario, bool isCore)
+		{
+			var title = scenario.Title;
+
+			scenario.Title = isCore ? "Core " + scenario.Title : "Pitch " + scenario.Title;
+
+			var scenarioOutline = scenario as ScenarioOutline;
+			if (scenarioOutline != null)
+				GenerateScenarioOutlineTest(generationContext, scenarioOutline);
+			else
+				GenerateTest(generationContext, scenario);
+
+			scenario.Title = title;
+		}
+
+		private void SetupScenarioCleanupMethod(TestClassGenerationContext generationContext)
         {
             CodeMemberMethod scenarioCleanupMethod = generationContext.ScenarioCleanupMethod;
 
